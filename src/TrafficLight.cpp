@@ -1,5 +1,7 @@
 #include <iostream>
 #include <random>
+#include <future>
+#include <thread>
 #include "TrafficLight.h"
 
 /* Implementation of class "MessageQueue" */
@@ -19,6 +21,12 @@ void MessageQueue<T>::send(T &&msg)
 {
     // FP.4a : The method send should use the mechanisms std::lock_guard<std::mutex> 
     // as well as _condition.notify_one() to add a new message to the queue and afterwards send a notification.
+        std::lock_guard<std::mutex> lck(_mtx);
+
+        // add vector to queue
+        _queue.push_back(std::move(msg));
+        _cond.notify_one(); // notify client after pushing msg to _queue
+
 }
 
 
@@ -66,7 +74,7 @@ void TrafficLight::cycleThroughPhases()
 
     // init stop watch
     lastUpdate = std::chrono::system_clock::now();
-
+    std::vector<std::future<void>> futures;
     while (true)
     {
         // sleep at every iteration to reduce CPU usage
@@ -80,6 +88,7 @@ void TrafficLight::cycleThroughPhases()
                _currentPhase = TrafficLightPhase::red;
             else
                _currentPhase = TrafficLightPhase::green;
+            futures.emplace_back(std::async(std::launch::async, &MessageQueue<TrafficLightPhase>::send, &_msg, std::move(_currentPhase)));
         }
     }
 
